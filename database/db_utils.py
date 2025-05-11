@@ -1,8 +1,14 @@
+import os
 from pymongo import MongoClient
 import bcrypt
 from utils.image_utils import delete_profile_image
 
-client = MongoClient("mongodb://localhost:27017/")
+from dotenv import load_dotenv
+
+load_dotenv()
+MONGO_URI = os.getenv("MONGO_URI")
+
+client = MongoClient(MONGO_URI)
 db = client["user_db"]
 collection = db["users"]
 
