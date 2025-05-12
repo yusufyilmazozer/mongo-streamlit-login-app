@@ -5,7 +5,6 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 import streamlit as st
 from bson import ObjectId
 
-from utils.image_utils import delete_profile_image, crop_and_save_square_image
 from database.db_utils import (
     add_user,
     get_all_users,
@@ -16,6 +15,8 @@ from database.db_utils import (
     delete_user,
     grant_admin,
     revoke_admin,
+    get_profile_image,
+    update_profile_image,
     collection
 )
 
@@ -65,15 +66,14 @@ elif menu == "Register":
             if existing_user:
                 st.error("❌ Username already taken.")
             else:
-                image_path = None
-                if profile_image is not None:
-                    ext = profile_image.name.split(".")[-1]
-                    new_id = ObjectId()
-                    file_name = f"{new_id}.{ext}"
-                    image_path = os.path.join("uploads", file_name)
-                    crop_and_save_square_image(profile_image, image_path)
-
-                add_user(username, full_name, age, city, password, profile_image=image_path)
+                add_user(
+                    username=username,
+                    full_name=full_name,
+                    age=age,
+                    city=city,
+                    password=password,
+                    profile_image=profile_image
+                )
                 st.success("✅ Registration successful!")
         else:
             st.warning("Please fill in all fields.")
@@ -87,9 +87,10 @@ elif menu == "Dashboard" and st.session_state.logged_in:
 
     col1, col2 = st.columns([1, 5])
     with col1:
-        image_path = user.get("profile_image")
-        if image_path and os.path.exists(image_path):
-            st.image(image_path, width=100)
+        image_id = user.get("profile_image_id")
+        image_bytes = get_profile_image(image_id)
+        if image_bytes:
+            st.image(image_bytes, width=100)
         else:
             st.image("https://cdn-icons-png.flaticon.com/512/149/149071.png", width=100)
 
@@ -134,8 +135,10 @@ elif menu == "Dashboard" and st.session_state.logged_in:
 
         col1, col2 = st.columns([1, 5])
         with col1:
-            if "profile_image" in u:
-                st.image(u["profile_image"], width=100)
+            image_id = u.get("profile_image_id")
+            image_bytes = get_profile_image(image_id)
+            if image_bytes:
+                st.image(image_bytes, width=100)
             else:
                 st.image("https://cdn-icons-png.flaticon.com/512/149/149071.png", width=100)
 
@@ -190,27 +193,15 @@ elif menu == "Dashboard" and st.session_state.logged_in:
     new_profile_image = st.file_uploader("New Profile Image", type=["jpg", "jpeg", "png"], key="profile_image")
 
     if st.button("💾 Update My Info"):
-        old_image = user.get("profile_image")
-        if new_profile_image is not None and old_image:
-            delete_profile_image(old_image)
-
-        image_path = user.get("profile_image")
         if new_profile_image is not None:
-            ext = new_profile_image.name.split(".")[-1]
-            file_name = f"{user['_id']}.{ext}"
-            image_path = os.path.join("uploads", file_name)
-            crop_and_save_square_image(new_profile_image, image_path)
-
-            with open(image_path, "wb") as f:
-                f.write(new_profile_image.read())
+            update_profile_image(st.session_state.username, new_profile_image)
 
         collection.update_one(
             {"username": st.session_state.username},
             {"$set": {
                 "full_name": new_full_name,
                 "age": new_age,
-                "city": new_city,
-                "profile_image": image_path
+                "city": new_city
             }}
         )
 
